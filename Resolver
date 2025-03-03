@@ -1,0 +1,119 @@
+-- Create Resolver GUI
+local ResolverGui = Instance.new("ScreenGui")
+local ResolverButton = Instance.new("TextButton")
+
+-- Parent GUI to CoreGui
+ResolverGui.Parent = game.CoreGui
+
+-- Button Properties
+ResolverButton.Parent = ResolverGui
+ResolverButton.Size = UDim2.new(0, 150, 0, 50)
+ResolverButton.Position = UDim2.new(0.5, -75, 0.1, 0) -- Centered
+ResolverButton.Text = "Resolver OFF"
+ResolverButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ResolverButton.TextSize = 18
+ResolverButton.Font = Enum.Font.Arcade
+ResolverButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+ResolverButton.BorderSizePixel = 0
+
+-- Rounded Corners
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 16)
+corner.Parent = ResolverButton
+
+-- **Draggable Button Logic**
+local dragging, dragInput, startPos, startMousePos
+
+ResolverButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        startPos = ResolverButton.Position
+        startMousePos = input.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+ResolverButton.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - startMousePos
+        ResolverButton.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- **Safe Resolver Function**
+local function onHeartbeat()
+    for _, Target in pairs(Players:GetPlayers()) do
+        if Target ~= LocalPlayer then
+            -- **Wait for Character to Load**
+            if not Target.Character then
+                Target.CharacterAdded:Wait() -- Wait for character spawn
+            end
+
+            -- **Ensure Character & Humanoid Exist**
+            local Character = Target.Character
+            if Character then
+                local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+                local RootPart = Character:FindFirstChild("HumanoidRootPart")
+
+                if Humanoid and RootPart and Humanoid.MoveDirection.Magnitude > 0 then
+                    local velocityFix = Humanoid.MoveDirection * 22  
+
+                    -- Apply velocity fix safely
+                    for _, partName in ipairs({"HumanoidRootPart", "UpperTorso", "LowerTorso", "Head"}) do
+                        local part = Character:FindFirstChild(partName)
+                        if part then
+                            part.Velocity = velocityFix
+                            part.AssemblyLinearVelocity = velocityFix
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- **Toggle Resolver**
+local function toggleResolver()
+    scriptEnabled = not scriptEnabled
+
+    if scriptEnabled then
+        ResolverButton.Text = "Resolver ON"
+        ResolverButton.BackgroundColor3 = Color3.fromRGB(0, 200, 200)
+
+        -- Start resolver loop
+        connection = RunService.Heartbeat:Connect(onHeartbeat)
+        
+        -- Show notification
+        StarterGui:SetCore("SendNotification", {
+            Title = "Resolver Activated",
+            Text = "Resolving Anti-Lock...",
+            Duration = 2
+        })
+    else
+        ResolverButton.Text = "Resolver OFF"
+        ResolverButton.BackgroundColor3 = Color3.fromRGB(0, 255, 255)
+
+        -- Stop resolver loop
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        
+        -- Show notification
+        StarterGui:SetCore("SendNotification", {
+            Title = "Resolver Disabled",
+            Text = "Stopped resolving.",
+            Duration = 2
+        })
+    end
+end
+
+-- Connect Button Click to Toggle Function
+ResolverButton.MouseButton1Click:Connect(toggleResolver)
