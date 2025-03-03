@@ -1,0 +1,93 @@
+-- Create GUI
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+
+-- Create Button
+local Button = Instance.new("TextButton")
+Button.Size = UDim2.new(0, 100, 0, 40)
+Button.Position = UDim2.new(0.5, -50, 0.5, -20)
+Button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+Button.BackgroundTransparency = 0.2
+Button.Text = "Noclip: OFF"
+Button.TextColor3 = Color3.fromRGB(255, 255, 255)
+Button.Parent = ScreenGui
+
+-- Add Rounded Corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = Button
+
+-- Services
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+
+-- Noclip Variables
+local NoclipEnabled = false
+local Connection
+
+-- Function to Toggle Noclip
+local function ToggleNoclip()
+    NoclipEnabled = not NoclipEnabled
+    Button.Text = "Noclip: " .. (NoclipEnabled and "ON" or "OFF")
+
+    if NoclipEnabled then
+        if Connection then Connection:Disconnect() end
+        Connection = RunService.Stepped:Connect(function()
+            if NoclipEnabled and LocalPlayer.Character then
+                for _, part in pairs(LocalPlayer.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end)
+    else
+        if Connection then
+            Connection:Disconnect()
+            Connection = nil
+        end
+    end
+end
+
+-- Detect Player Respawn
+local function OnCharacterAdded(Character)
+    repeat task.wait() until Character:FindFirstChild("HumanoidRootPart")
+    if NoclipEnabled then
+        ToggleNoclip() -- Restart Noclip after respawn
+        ToggleNoclip()
+    end
+end
+
+-- **Draggable Button Logic**
+local dragging, startPos, startMousePos
+
+Button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        startPos = Button.Position
+        startMousePos = input.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Button.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - startMousePos
+        Button.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+-- Button Click Event
+Button.MouseButton1Click:Connect(ToggleNoclip)
+
+-- Hook into Player Respawn
+LocalPlayer.CharacterAdded:Connect(OnCharacterAdded)
+if LocalPlayer.Character then
+    OnCharacterAdded(LocalPlayer.Character)
+end
