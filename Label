@@ -1,0 +1,13 @@
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui
+
+local Label = Instance.new("TextLabel")
+Label.Parent = ScreenGui
+Label.Size = UDim2.new(0.3, 0, 0.05, 0) -- Adjust width & height
+Label.Position = UDim2.new(0.5, 0, 0.02, 0) -- Centered horizontally, top position
+Label.AnchorPoint = Vector2.new(0.5, 0) -- Centers label properly
+Label.BackgroundTransparency = 1 -- Makes background invisible
+Label.Text = "Made By VardyScripts"
+Label.TextColor3 = Color3.new(1, 1, 1) -- White text
+Label.TextSize = 20
+Label.Font = Enum.Font.Arcade
