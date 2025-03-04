@@ -1,3 +1,7 @@
+--[[ Yall can take this lua Notification template lol
+Sub2NexarionXyz
+--]]
+
 local Players = game:GetService("Players")
 local player = Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
@@ -37,7 +41,7 @@ message.BackgroundTransparency = 1
 message.Font = Enum.Font.Gotham
 message.TextSize = 14
 message.TextColor3 = Color3.fromRGB(200, 200, 200)
-message.Text = "Vortex V3.8 Executed "
+message.Text = "Vortex V3.8 Executed"
 message.TextXAlignment = Enum.TextXAlignment.Left
 message.TextWrapped = true
 
