@@ -1,6 +1,6 @@
 getgenv().Vortex = {
     ['Camlock'] = {
-        ['Prediction'] = 0.1355,
+        ['Prediction'] = 0.1377023164,
         ['Prediction Method'] = {
             ['X'] = 0.19,
             ['Y'] = 0.19,
@@ -14,7 +14,7 @@ getgenv().Vortex = {
     ['TargetAim'] = {
         ['FOV'] = {
             ['Enabled'] = true,
-            ['Prediction'] = 0.072,
+            ['Prediction'] = 0.1377023164,
             ['AutoCheckJump'] = true,
             ['AntiGroundShot'] = false,
         },
@@ -30,8 +30,8 @@ local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
 local CamlockState = false
-local Prediction = 0.1355
-local Smoothness = 0.2
+local Prediction = 0.1377023164
+local Smoothness = 0.1
 local SmoothEnabled = true
 local AutoAir = true
 local EnemyAir = true
@@ -160,8 +160,8 @@ cornerUI.CornerRadius = UDim.new(0, 5)
 cornerUI.Parent = TextButton
 
 getgenv().HitPart = "UpperTorso"
-getgenv().Prediction_TargetAim = 0.072
-getgenv().TargetAimEnabled = true  -- Default to disabled
+getgenv().Prediction_TargetAim = 0.1377023164
+getgenv().TargetAimEnabled = false  -- Default to disabled
 getgenv().TargetAimShowFOV = false  -- Default to showing FOV
 
 getgenv().TargetAimFOVSize = 90
