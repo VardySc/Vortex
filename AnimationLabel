@@ -1,11 +1,15 @@
+--[[ kill me pls
+    i hate this
+--]]
+
 -- Create the ImageLabel for animation
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local ImageLabel = Instance.new("ImageLabel")
 ImageLabel.Parent = ScreenGui
-ImageLabel.Image = "rbxassetid://72922058223225"  -- Replace with your asset ID
-ImageLabel.Size = UDim2.new(0, 300, 0, 75) -- Adjusted size
+ImageLabel.Image = "rbxassetid://72922058223225"  -- mine, dont take it 
+ImageLabel.Size = UDim2.new(0, 150, 0, 150) -- square ahh
 ImageLabel.Position = UDim2.new(0.5, -150, 0.5, -37) -- Centered at middle of screen
 ImageLabel.BackgroundTransparency = 1
 ImageLabel.ImageTransparency = 1 -- Start fully transparent
@@ -37,7 +41,7 @@ local function AnimateImage()
     colorTween:Play()
 
     -- Fade out the image and move upwards
-    goal = {ImageTransparency = 1, Position = UDim2.new(0.5, -150, 0.4, -37)} -- Fade and move upwards
+    goal = {ImageTransparency = 1, Position = UDim2.new(0.5, -150, 0.4, -37)} -- Fading brudda
     local fadeOutTween = TweenService:Create(ImageLabel, tweenInfo, goal)
     fadeOutTween:Play()
     fadeOutTween.Completed:Wait()
