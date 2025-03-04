@@ -56,39 +56,33 @@ ResolverButton.InputChanged:Connect(function(input)
     end
 end)
 
--- **Optimized Resolver Function (Anti-Lock Recalculation)**
-local function RecalculateTarget(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
-
-    local root = target.HumanoidRootPart
-    local velocity = root.Velocity
-    local moveDirection = root.CFrame.lookVector
-
-    -- Detect and correct sudden movement direction changes (Anti-Lock bypass)
-    local speed = velocity.Magnitude
-    local predictedMove = moveDirection * speed
-
-    -- Apply smoothing based on velocity and acceleration
-    local recalculatedPosition = root.Position + predictedMove + (velocity * 0.05)
-
-    return recalculatedPosition
-end
-
--- **Apply Resolver Fixes Every Frame**
-local function onRenderStep()
+-- **Resolver Function (Now Includes Head)**
+local function onHeartbeat()
     for _, Target in pairs(Players:GetPlayers()) do
-        if Target ~= LocalPlayer then
+        if Target ~= LocalPlayer and Target.Character then
             local Character = Target.Character
-            if Character then
-                local RootPart = Character:FindFirstChild("HumanoidRootPart")
-                local Humanoid = Character:FindFirstChildOfClass("Humanoid")
+            local Humanoid = Character:FindFirstChildOfClass("Humanoid")
 
-                if RootPart and Humanoid and Humanoid.MoveDirection.Magnitude > 0 then
-                    local recalculatedPos = RecalculateTarget(Target)
-                    
-                    -- Apply movement correction
-                    if recalculatedPos then
-                        RootPart.CFrame = CFrame.new(recalculatedPos)
+            if Humanoid and Humanoid.MoveDirection.Magnitude > 0 then
+                local moveVelocity = Humanoid.MoveDirection * 16
+                
+                -- Apply velocity to selected R15 parts
+                local TargetParts = {
+                    "HumanoidRootPart",
+                    "UpperTorso",
+                    "LowerTorso",
+                    "LeftUpperLeg",
+                    "LeftLowerLeg",
+                    "RightUpperLeg",
+                    "RightLowerLeg",
+                    "Head"
+                }
+
+                for _, partName in ipairs(TargetParts) do
+                    local Part = Character:FindFirstChild(partName)
+                    if Part then
+                        Part.Velocity = moveVelocity
+                        Part.AssemblyLinearVelocity = moveVelocity
                     end
                 end
             end
@@ -104,9 +98,9 @@ local function toggleResolver()
         ResolverButton.Text = "Resolver ON"
         ResolverButton.BackgroundColor3 = Color3.fromRGB(0, 200, 200)
 
-        -- Start resolver loop (Run every frame)
-        connection = RunService.RenderStepped:Connect(onRenderStep)
-        
+        -- Start resolver loop
+        connection = RunService.Heartbeat:Connect(onHeartbeat)
+
         -- Show notification
         StarterGui:SetCore("SendNotification", {
             Title = "Resolver Activated",
@@ -122,7 +116,7 @@ local function toggleResolver()
             connection:Disconnect()
             connection = nil
         end
-        
+
         -- Show notification
         StarterGui:SetCore("SendNotification", {
             Title = "Resolver Disabled",
