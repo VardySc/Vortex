@@ -1,0 +1,60 @@
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
+
+-- Create ScreenGui
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+
+-- Notification Frame
+local frame = Instance.new("Frame", gui)
+frame.Size = UDim2.new(0, 320, 0, 75)  -- Adjusted size
+frame.Position = UDim2.new(0, -320, 0.5, -37) -- Start hidden (off-screen left)
+frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+frame.BackgroundTransparency = 0.3
+frame.BorderSizePixel = 0
+frame.ClipsDescendants = true -- Prevents text from overflowing
+
+-- Round Corners
+local corner = Instance.new("UICorner", frame)
+corner.CornerRadius = UDim.new(0, 8) -- Smooth edges
+
+-- Title Label
+local title = Instance.new("TextLabel", frame)
+title.Size = UDim2.new(1, -10, 0.4, 0)
+title.Position = UDim2.new(0, 5, 0, 5)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Text = "@VardyScript On YouTube!"
+title.TextXAlignment = Enum.TextXAlignment.Left
+
+-- Message Label
+local message = Instance.new("TextLabel", frame)
+message.Size = UDim2.new(1, -10, 0.6, 0)
+message.Position = UDim2.new(0, 5, 0.4, 0)
+message.BackgroundTransparency = 1
+message.Font = Enum.Font.Gotham
+message.TextSize = 14
+message.TextColor3 = Color3.fromRGB(200, 200, 200)
+message.Text = "Vortex V3.8 Executed "
+message.TextXAlignment = Enum.TextXAlignment.Left
+message.TextWrapped = true
+
+-- Show Notification Animation (Slide In)
+local showTween = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = UDim2.new(0, 10, 0.5, -37)})
+showTween:Play()
+
+-- Wait before closing
+task.wait(7)
+
+-- Closing Animation (Slide Out + Fade Out)
+local closeTween = TweenService:Create(frame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+    Position = UDim2.new(0, -320, 0.5, -37),
+    BackgroundTransparency = 1
+})
+
+closeTween:Play()
+closeTween.Completed:Connect(function()
+    frame:Destroy()
+end)
