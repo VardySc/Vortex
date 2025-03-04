@@ -1,3 +1,12 @@
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local StarterGui = game:GetService("StarterGui")
+
+local LocalPlayer = Players.LocalPlayer
+local scriptEnabled = false
+local connection
+
 -- Create Resolver GUI
 local ResolverGui = Instance.new("ScreenGui")
 local ResolverButton = Instance.new("TextButton")
@@ -22,7 +31,7 @@ corner.CornerRadius = UDim.new(0, 16)
 corner.Parent = ResolverButton
 
 -- **Draggable Button Logic**
-local dragging, dragInput, startPos, startMousePos
+local dragging, startPos, startMousePos
 
 ResolverButton.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -47,31 +56,39 @@ ResolverButton.InputChanged:Connect(function(input)
     end
 end)
 
--- **Safe Resolver Function**
-local function onHeartbeat()
+-- **Optimized Resolver Function (Anti-Lock Recalculation)**
+local function RecalculateTarget(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") then return end
+
+    local root = target.HumanoidRootPart
+    local velocity = root.Velocity
+    local moveDirection = root.CFrame.lookVector
+
+    -- Detect and correct sudden movement direction changes (Anti-Lock bypass)
+    local speed = velocity.Magnitude
+    local predictedMove = moveDirection * speed
+
+    -- Apply smoothing based on velocity and acceleration
+    local recalculatedPosition = root.Position + predictedMove + (velocity * 0.05)
+
+    return recalculatedPosition
+end
+
+-- **Apply Resolver Fixes Every Frame**
+local function onRenderStep()
     for _, Target in pairs(Players:GetPlayers()) do
         if Target ~= LocalPlayer then
-            -- **Wait for Character to Load**
-            if not Target.Character then
-                Target.CharacterAdded:Wait() -- Wait for character spawn
-            end
-
-            -- **Ensure Character & Humanoid Exist**
             local Character = Target.Character
             if Character then
-                local Humanoid = Character:FindFirstChildOfClass("Humanoid")
                 local RootPart = Character:FindFirstChild("HumanoidRootPart")
+                local Humanoid = Character:FindFirstChildOfClass("Humanoid")
 
-                if Humanoid and RootPart and Humanoid.MoveDirection.Magnitude > 0 then
-                    local velocityFix = Humanoid.MoveDirection * 22  
-
-                    -- Apply velocity fix safely
-                    for _, partName in ipairs({"HumanoidRootPart", "UpperTorso", "LowerTorso", "Head"}) do
-                        local part = Character:FindFirstChild(partName)
-                        if part then
-                            part.Velocity = velocityFix
-                            part.AssemblyLinearVelocity = velocityFix
-                        end
+                if RootPart and Humanoid and Humanoid.MoveDirection.Magnitude > 0 then
+                    local recalculatedPos = RecalculateTarget(Target)
+                    
+                    -- Apply movement correction
+                    if recalculatedPos then
+                        RootPart.CFrame = CFrame.new(recalculatedPos)
                     end
                 end
             end
@@ -87,8 +104,8 @@ local function toggleResolver()
         ResolverButton.Text = "Resolver ON"
         ResolverButton.BackgroundColor3 = Color3.fromRGB(0, 200, 200)
 
-        -- Start resolver loop
-        connection = RunService.Heartbeat:Connect(onHeartbeat)
+        -- Start resolver loop (Run every frame)
+        connection = RunService.RenderStepped:Connect(onRenderStep)
         
         -- Show notification
         StarterGui:SetCore("SendNotification", {
@@ -115,5 +132,5 @@ local function toggleResolver()
     end
 end
 
--- Connect Button Click to Toggle Function
+-- **Connect Button Click to Toggle Function**
 ResolverButton.MouseButton1Click:Connect(toggleResolver)
