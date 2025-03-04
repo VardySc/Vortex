@@ -1,6 +1,4 @@
---[[ kill me pls
-    i hate this
---]]
+-- Ive played this games before ;-;
 
 -- Create the ImageLabel for animation
 local ScreenGui = Instance.new("ScreenGui")
@@ -8,40 +6,41 @@ ScreenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
 local ImageLabel = Instance.new("ImageLabel")
 ImageLabel.Parent = ScreenGui
-ImageLabel.Image = "rbxassetid://72922058223225"  -- mine, dont take it 
-ImageLabel.Size = UDim2.new(0, 150, 0, 150) -- square ahh
-ImageLabel.Position = UDim2.new(0.5, -150, 0.5, -37) -- Centered at middle of screen
+ImageLabel.Image = "rbxassetid://72922058223225"  -- Replace with your asset ID
+ImageLabel.Size = UDim2.new(0, 150, 0, 150) -- Square size
 ImageLabel.BackgroundTransparency = 1
 ImageLabel.ImageTransparency = 1 -- Start fully transparent
 ImageLabel.Visible = false -- Start hidden
+
+-- Fix centering
+ImageLabel.AnchorPoint = Vector2.new(0.5, 0.5) -- Centers the image correctly
+ImageLabel.Position = UDim2.new(0.5, 0, 0.5, 0) -- Always centered
+
+-- Force square shape
+local AspectRatio = Instance.new("UIAspectRatioConstraint")
+AspectRatio.Parent = ImageLabel
+AspectRatio.AspectRatio = 1
 
 -- Animation function for ImageLabel
 local function AnimateImage()
     ImageLabel.Visible = true
 
-    -- Initial position and transparency
-    ImageLabel.Position = UDim2.new(0.5, -150, 0.5, -37)
+    -- Initial transparency
     ImageLabel.ImageTransparency = 1
 
     -- Animate the image
     local TweenService = game:GetService("TweenService")
 
     local tweenInfo = TweenInfo.new(5, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out)
-    local goal = {ImageTransparency = 0, Position = UDim2.new(0.5, -150, 0.55, -37)} -- Appear and move down
+    local goal = {ImageTransparency = 0, Position = UDim2.new(0.5, 0, 0.55, 0)} -- Appear and move down
     local tween = TweenService:Create(ImageLabel, tweenInfo, goal)
     tween:Play()
 
     -- Wait for animation to complete
     tween.Completed:Wait()
 
-    -- Color transition animation (Only works if ImageLabel supports ImageColor3)
-    local colorTweenInfo = TweenInfo.new(5, Enum.EasingStyle.Linear, Enum.EasingDirection.InOut, -1, true)  -- Looping tween for color change
-    local colorGoal = {ImageColor3 = Color3.fromRGB(0, 255, 0)} -- Change color to green
-    local colorTween = TweenService:Create(ImageLabel, colorTweenInfo, colorGoal)
-    colorTween:Play()
-
     -- Fade out the image and move upwards
-    goal = {ImageTransparency = 1, Position = UDim2.new(0.5, -150, 0.4, -37)} -- Fading brudda
+    goal = {ImageTransparency = 1, Position = UDim2.new(0.5, 0, 0.4, 0)} -- Fade and move upwards
     local fadeOutTween = TweenService:Create(ImageLabel, tweenInfo, goal)
     fadeOutTween:Play()
     fadeOutTween.Completed:Wait()
