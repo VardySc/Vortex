@@ -1,0 +1,245 @@
+getgenv().Vortex = {
+    ['Camlock'] = {
+        ['Prediction'] = 0.18749,
+        ['Prediction Method'] = {
+            ['X'] = 20,
+            ['Y'] = 20,
+        }
+    },
+    ['JumpCheck'] = {
+        ['Jump'] = 0.140123,
+        ['Fall'] = 0.11746444,
+        ['Target Part'] = "UpperTorso"
+    },
+    ['TargetAim'] = {
+        ['FOV'] = {
+            ['Enabled'] = true,
+            ['Prediction'] = 0.1377023164,
+            ['AutoCheckJump'] = true,
+            ['AntiGroundShot'] = true,
+        },
+        ['AutoAir'] = {
+            ['AutoAir'] = true,
+            ['AirMaterial'] = Jump, -- Nothing, Move, Jumps, WhenMove, Around, Parent
+        }
+    }
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local CamlockState = false
+local Prediction = 0.18749
+local Smoothness = 1
+local SmoothEnabled = true
+local AutoAir = true
+local EnemyAir = true
+local AirshotMaterial = Jump -- Move, Around, Jumps, Nothing
+local JumpCheck = true
+local Jump = 0.140123
+local Fall = 0.11746444
+
+-- Function to remove ESP chams
+local function removeCham(cham)
+    if cham then
+        cham:Destroy()
+    end
+end
+
+local currentCham
+
+function FindNearestEnemy()
+    local ClosestDistance, ClosestPlayer = math.huge, nil
+    local CenterPosition = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
+                local Position, IsVisibleOnViewport = workspace.CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
+
+                if IsVisibleOnViewport then
+                    local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
+                    if Distance < ClosestDistance then
+                        ClosestPlayer = Character.HumanoidRootPart
+                        ClosestDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+
+    return ClosestPlayer
+end
+
+local enemy = nil
+
+-- Function to aim the camera at the nearest enemy's HumanoidRootPart
+RunService.Heartbeat:Connect(function()
+    if CamlockState == true then
+        if enemy then
+            local camera = workspace.CurrentCamera
+            local targetCFrame = CFrame.new(camera.CFrame.p, enemy.Position + enemy.Velocity * Prediction)
+            if SmoothEnabled then
+                camera.CFrame = camera.CFrame:Lerp(targetCFrame, Smoothness)
+            else
+                camera.CFrame = targetCFrame
+            end
+        end
+    end
+end)
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "Dukeshadow"
+gui.Parent = game.CoreGui
+
+local TextButton = Instance.new("TextButton")
+TextButton.Text = "vortex.lua"
+TextButton.TextSize = 25
+TextButton.TextColor3 = Color3.new(1, 1, 1)
+TextButton.BackgroundColor3 = Color3.new(0.1, 0.1, 0.1)
+TextButton.BorderColor3 = Color3.new(0.3, 0.3, 0.3)
+TextButton.BorderSizePixel = 4
+TextButton.BackgroundTransparency = 1
+TextButton.Font = Enum.Font.Arcade
+TextButton.Size = UDim2.new(0.2, 0, 0.2, 0)
+TextButton.Position = UDim2.new(0.7, 0, 0.3, 0) -- Adjust position
+TextButton.Draggable = true
+TextButton.Parent = gui -- Ensure it is parented before connecting the event
+
+local cornerUI = Instance.new("UICorner")
+cornerUI.CornerRadius = UDim.new(0, 5)
+cornerUI.Parent = TextButton
+
+local state = false
+local currentCham
+
+local function highlightEnemy(target)
+    if currentCham then
+        currentCham:Destroy()  -- Remove previous highlight
+    end
+
+    if target then
+        local highlight = Instance.new("Highlight")
+        highlight.Parent = target.Parent -- Attach to character
+        highlight.FillColor = Color3.new(0, 1, 0) -- Green highlight
+        highlight.OutlineColor = Color3.new(0, 0, 0) -- Black outline
+        highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+        highlight.FillTransparency = 0.3
+        highlight.OutlineTransparency = 0
+
+        currentCham = highlight
+    end
+end
+
+TextButton.MouseButton1Click:Connect(function()
+    state = not state
+    if state then
+        TextButton.Text = "vortex.lua (ON)"
+        TextButton.TextColor3 = Color3.new(0, 255, 255)
+        getgenv().TargetAimEnabled = true
+        CamlockState = true
+        enemy = FindNearestEnemy()
+        highlightEnemy(enemy)
+    else
+        TextButton.Text = "vortex.lua (OFF)"
+        TextButton.TextColor3 = Color3.new(1, 1, 1)
+        getgenv().TargetAimEnabled = false
+        CamlockState = false
+        if currentCham then
+            currentCham:Destroy()
+            currentCham = nil
+        end
+        enemy = nil
+    end
+end)
+
+local cornerUI = Instance.new("UICorner")
+cornerUI.CornerRadius = UDim.new(0, 5)
+cornerUI.Parent = TextButton
+
+getgenv().HitPart = "UpperTorso"
+getgenv().Prediction_TargetAim = 0.1377023164
+getgenv().TargetAimEnabled = false  -- Default to disabled
+getgenv().TargetAimShowFOV = false  -- Default to showing FOV
+
+getgenv().TargetAimFOVSize = 90
+getgenv().TargetAimFOVTransparency = 1
+getgenv().TargetAimFOVThickness = 2.0
+getgenv().TargetAimFOVColor = Color3.new(255, 0, 0)
+
+local TargetAimFOVCircle = Drawing.new("Circle")
+TargetAimFOVCircle.Color = getgenv().TargetAimFOVColor
+TargetAimFOVCircle.Visible = getgenv().TargetAimShowFOV
+TargetAimFOVCircle.Filled = false
+TargetAimFOVCircle.Radius = getgenv().TargetAimFOVSize
+TargetAimFOVCircle.Transparency = getgenv().TargetAimFOVTransparency
+TargetAimFOVCircle.Thickness = getgenv().TargetAimFOVThickness
+
+local function updateFOVCirclePosition()
+    local centerScreenPosition = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+    TargetAimFOVCircle.Position = centerScreenPosition
+end
+
+local function getClosestPlayerToCenter()
+    local centerScreenPosition = Vector2.new(workspace.CurrentCamera.ViewportSize.X / 2, workspace.CurrentCamera.ViewportSize.Y / 2)
+    local closestPlayer
+    local closestDistance = math.huge
+    local camera = workspace.CurrentCamera
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local playerRootPart = player.Character.HumanoidRootPart
+            local screenPosition, onScreen = camera:WorldToViewportPoint(playerRootPart.Position)
+
+            if onScreen then
+                local distance = (centerScreenPosition - Vector2.new(screenPosition.X, screenPosition.Y)).Magnitude
+                if distance < closestDistance and distance <= TargetAimFOVCircle.Radius then
+                    closestPlayer = player
+                    closestDistance = distance
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+local TargetAimTarget = nil
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    TargetAimTarget = getClosestPlayerToCenter()
+end)
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    updateFOVCirclePosition()
+end)
+
+local mt = getrawmetatable(game)
+local old = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(...)
+    local args = {...}
+    if getgenv().TargetAimEnabled and TargetAimTarget ~= nil and TargetAimTarget.Character and getnamecallmethod() == "FireServer" then
+        args[3] = TargetAimTarget.Character[getgenv().HitPart].Position + (TargetAimTarget.Character[getgenv().HitPart].Velocity * getgenv().Prediction_TargetAim)
+        return old(unpack(args))
+    end
+    return old(...)
+end)
+setreadonly(mt, true)
+
+-- expand hitbox by xr/pamcles/airhitpart
+local function randomizeHitbox(player)
+    local character = player.Character
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        local HitBoxGram = character.HumanoidRootPart
+        local randomSize = Vector3.new(math.random(7, 30), math.random(7, 30), math.random(7, 30))
+        HitBoxGram.Size = randomSize
+        HitBoxGram.Massless = true
+        HitBoxGram.CanCollide = false
+        HitBoxGram.Anchored = true
+        wait(0.1)
+        hrp.Anchored = false
+    end
+end
