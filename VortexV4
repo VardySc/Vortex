@@ -50,7 +50,34 @@ end
 local currentCham
 
 local function IsFriend(player)
-    return LocalPlayer:IsFriendsWith(player.UserId) -- Checks if the player is on the friend list
+    return LocalPlayer:IsFriendsWith(player.UserId) -- Ignore friends
+end
+
+local function IsFriend(player)
+    return LocalPlayer:IsFriendsWith(player.UserId) -- Ignore friends
+end
+
+local function IsVisible(targetPart)
+    local origin = workspace.CurrentCamera.CFrame.Position
+    local direction = (targetPart.Position - origin).unit * (targetPart.Position - origin).Magnitude -- Exact distance
+
+    local params = RaycastParams.new()
+    params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent} -- Ignore local player & target
+    params.FilterType = Enum.RaycastFilterType.Blacklist
+
+    local result = workspace:Raycast(origin, direction, params)
+
+    if result and result.Instance then
+        print("Blocked by:", result.Instance.Name, "Material:", result.Instance.Material)
+        
+        -- Ignore glass, transparent objects, or small parts
+        if result.Instance.Transparency < 0.5 and result.Instance.Size.Magnitude > 2 then
+            return false -- Target is behind a solid wall
+        end
+    end
+
+    print("Target is visible:", targetPart.Parent.Name)
+    return true -- No wall in the way
 end
 
 function FindNearestEnemy()
@@ -61,13 +88,15 @@ function FindNearestEnemy()
         if Player ~= LocalPlayer and not IsFriend(Player) then -- Ignore friends
             local Character = Player.Character
             if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
-                local Position, IsVisibleOnViewport = workspace.CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
+                if IsVisible(Character.HumanoidRootPart) then -- Check if target is visible
+                    local Position, IsVisibleOnViewport = workspace.CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
 
-                if IsVisibleOnViewport then
-                    local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
-                    if Distance < ClosestDistance then
-                        ClosestPlayer = Character.HumanoidRootPart
-                        ClosestDistance = Distance
+                    if IsVisibleOnViewport then
+                        local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
+                        if Distance < ClosestDistance then
+                            ClosestPlayer = Character.HumanoidRootPart
+                            ClosestDistance = Distance
+                        end
                     end
                 end
             end
@@ -76,7 +105,6 @@ function FindNearestEnemy()
 
     return ClosestPlayer
 end
-
 local enemy = nil
 
 -- Function to aim the camera at the nearest enemy's HumanoidRootPart
