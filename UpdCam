@@ -1,0 +1,351 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
+getgenv().Vortex = {
+    ['Camlock'] = {
+        ['Prediction'] = 0.1568333333,
+        ['Prediction Method'] = { ['H'] = 6.52, ['V'] = 7.548 },
+        ['Smoothness'] = 0.4
+    },
+    ['JumpCheck'] = {
+        ['Jump'] = 0.1568333333,
+        ['Fall'] = 0.1568333333,
+        ['Target Part'] = "HumanoidRootPart"
+    },
+    ['FriendCheck'] = true,
+    ['WallCheck'] = false,
+}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Prediction = 0.1568333333
+local Smoothness = 0.4
+local CamlockState = false
+local target = nil
+local highlight = nil
+
+Prediction = getgenv().Vortex.Camlock.Prediction  -- âœ… Sync Prediction at Start
+Smoothness = getgenv().Vortex.Camlock.Smoothness or Smoothness -- (If you have smoothness in getgenv())
+
+-- âœ… Function to Create Notification GUI
+local function createNotificationGUI()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+    local NotificationGui = Instance.new("ScreenGui")
+    NotificationGui.Name = "Vortex_Notifications"
+    NotificationGui.Parent = playerGui
+
+    local Holder = Instance.new("Frame")
+    Holder.Name = "NotificationHolder"
+    Holder.Size = UDim2.new(0, 243, 0, 240)
+    Holder.Position = UDim2.new(1, -10, 0, 10)
+    Holder.BackgroundTransparency = 1
+    Holder.AnchorPoint = Vector2.new(1, 0)
+    Holder.Parent = NotificationGui
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 4)
+    UIListLayout.Parent = Holder
+
+    return Holder
+end
+
+-- âœ… Create Notification GUI on Start
+local NotificationHolder = createNotificationGUI()
+
+-- âœ… Function to Send Notification
+local function notify(text, duration)
+    duration = duration or 3 -- Default duration 3s
+
+    if not NotificationHolder or not NotificationHolder.Parent then
+        NotificationHolder = createNotificationGUI() -- Recreate if removed
+    end
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 22)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Frame.Parent = NotificationHolder
+
+    local ColorBar = Instance.new("Frame", Frame)
+    ColorBar.Size = UDim2.new(0, 2, 0, 22)
+    ColorBar.BackgroundColor3 = Color3.fromRGB(0, 0, 128)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, -10, 0, 22)
+    Label.Position = UDim2.new(0, 8, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.Code
+    Label.Text = text .. " [" .. duration .. "s]"
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 12
+    Label.TextStrokeTransparency = 0
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    task.spawn(function()
+        for i = duration, 1, -1 do
+            Label.Text = text .. " [" .. i .. "s]"
+            task.wait(1)
+        end
+
+        -- âœ… Fade out before destroying
+        for i = 1, 10 do
+            Frame.BackgroundTransparency = i * 0.1
+            Label.TextTransparency = i * 0.1
+            task.wait(0.03)
+        end
+        Frame:Destroy()
+    end)
+end
+
+-- âœ… Recreate Notifications on Respawn
+LocalPlayer.CharacterAdded:Connect(function()
+    task.wait(0.5) -- Wait for the PlayerGui to reload
+    NotificationHolder = createNotificationGUI() -- âœ… Recreate Notifications on Respawn
+end)
+
+-- âœ… Get Target Part Function
+function getTargetPart(character)
+    if not character then return nil end
+
+    local targetPart = nil
+
+    -- âœ… Check if JumpCheck is enabled and use "Humanoid"
+    if getgenv().Vortex.JumpCheck then
+        local humanoid = character:FindFirstChildOfClass("HumanoidRootPart")
+        if humanoid and humanoid.FloorMaterial == Enum.Material.Air then
+            targetPart = humanoid -- Use Humanoid if JumpCheck is active
+        end
+    end
+
+    -- âœ… Default to "UpperTorso" if JumpCheck doesn't override
+    if not targetPart then
+        targetPart = character:FindFirstChild("UpperTorso")
+    end
+
+    return targetPart
+end
+
+-- âœ… Find Nearest Enemy Function (Fixed)
+function findNearestPlayer()
+    local nearestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild(getgenv().Vortex.JumpCheck["Target Part"]) then
+            local targetPart = player.Character[getgenv().Vortex.JumpCheck["Target Part"]]
+            local screenPosition, onScreen = Camera:WorldToViewportPoint(targetPart.Position)
+
+            if onScreen then
+                local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)).Magnitude
+
+                -- âœ… Friend Check
+                if getgenv().Vortex.FriendCheck and LocalPlayer:IsFriendsWith(player.UserId) then
+                    continue
+                end
+
+                -- âœ… Wall Check (Prevents Locking Through Walls)
+                if getgenv().Vortex.WallCheck then
+                    local rayOrigin = Camera.CFrame.Position
+                    local rayDirection = (targetPart.Position - rayOrigin).Unit * (targetPart.Position - rayOrigin).Magnitude
+                    local raycastParams = RaycastParams.new()
+                    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+                    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+                    local hit = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+                    if hit and hit.Instance and hit.Instance:IsDescendantOf(player.Character) == false then
+                        continue
+                    end
+                end
+
+                -- âœ… Update the closest player
+                if distance < shortestDistance then
+                    shortestDistance = distance
+                    nearestPlayer = player
+                end
+            end
+        end
+    end
+
+    return nearestPlayer
+end
+
+-- âœ… CamLock Logic
+local smoothness = 0.4 -- âœ… Default smoothness
+
+RunService.RenderStepped:Connect(function()
+    if CamlockState and target and target.Character then
+        local targetPart = getTargetPart(target.Character)
+        if targetPart then
+            -- ðŸ”¥ Dynamic Prediction Using Velocity
+            local velocity = targetPart.Velocity
+            local dynamicH = velocity.X / getgenv().Vortex.Camlock["Prediction Method"].H
+            local dynamicV = velocity.Y / getgenv().Vortex.Camlock["Prediction Method"].V
+
+            -- ðŸ”¥ Adjusting Aim Position with Prediction
+            local aimPos = targetPart.Position + Vector3.new(dynamicH, dynamicV, 0) + (velocity * Prediction)
+            local newCFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+
+            -- âœ… Custom Smoothness Scaling
+            local lerpFactor = (Smoothness % 1 == 0) and (1 / (Smoothness * 10)) or (1 - Smoothness)
+            Camera.CFrame = Camera.CFrame:Lerp(newCFrame, lerpFactor)
+        end
+    end
+end)
+
+-- âœ… UI Button
+local gui = Instance.new("ScreenGui", game.CoreGui)
+local TextButton = Instance.new("TextButton", gui)
+TextButton.Text = "VORTEX.LUA"
+TextButton.Size = UDim2.new(0.15, 0, 0.08, 0)
+TextButton.Position = UDim2.new(0.7, 0, 0.3, 0)
+TextButton.Font = Enum.Font.Arcade
+TextButton.TextSize = 25
+TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.BackgroundTransparency = 1 -- âœ… Fully Transparent
+TextButton.Draggable = true
+
+local cornerUI = Instance.new("UICorner", TextButton)
+cornerUI.CornerRadius = UDim.new(0, 5)
+
+--- âœ… Highlight Target Function (Black Outline, Semi-Transparent Blue Fill)
+local function highlightTarget(player)
+    if highlight then highlight:Destroy() end
+    highlight = Instance.new("Highlight", player.Character)
+    highlight.FillColor = Color3.fromRGB(0, 0, 255) -- Blue Fill
+    highlight.OutlineColor = Color3.fromRGB(0, 0, 0) -- Black Outline
+    highlight.FillTransparency = 0.6 -- âœ… Semi-Transparent Fill
+    highlight.OutlineTransparency = 0.2 -- âœ… Slightly Transparent Outline
+end
+
+-- âœ… Button Click Logic
+TextButton.MouseButton1Click:Connect(function()
+    CamlockState = not CamlockState
+    if CamlockState then
+        target = findNearestPlayer()
+        if target then
+            highlightTarget(target)
+            notify("Vortex: Locked To " .. target.DisplayName, 3)
+            TextButton.Text = "VORTEX LUA (ON)"
+            TextButton.TextColor3 = Color3.fromRGB(0, 255, 255)
+            TextButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        else
+            notify("Vortex: No target found", 3)
+            CamlockState = false
+        end
+    else
+        notify("Vortex: Unlocked!", 3)
+        TextButton.Text = "VORTEX LUA (OFF)" -- âœ… Updated Text for OFF state
+        TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        TextButton.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+        if highlight then highlight:Destroy() end
+        target = nil
+    end
+end)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
+-- âœ… Global Settings
+getgenv().HitPart = "UpperTorso"
+getgenv().Prediction_TargetAim = 0.1377023164
+getgenv().TargetAimEnabled = false
+getgenv().TargetAimShowFOV = true
+getgenv().TargetAimFOVSize = 100
+getgenv().TargetAimSmoothness = 0.2  -- Adjust this for better smoothness
+
+-- âœ… Create FOV Circle
+local TargetAimFOVCircle = Drawing.new("Circle")
+TargetAimFOVCircle.Color = Color3.new(1, 0, 0)
+TargetAimFOVCircle.Filled = false
+TargetAimFOVCircle.Thickness = 2.0
+TargetAimFOVCircle.Visible = getgenv().TargetAimShowFOV
+TargetAimFOVCircle.Radius = getgenv().TargetAimFOVSize
+TargetAimFOVCircle.Transparency = 1
+
+-- âœ… Function to Update FOV Position
+local function updateFOVCirclePosition()
+    TargetAimFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+end
+
+-- âœ… Function to Get Closest Player Inside FOV
+local function getClosestPlayerToFOV()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local closestPlayer = nil
+    local closestDist = getgenv().TargetAimFOVSize  -- Limit by FOV radius
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local rootPart = player.Character:FindFirstChild(getgenv().HitPart) or player.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                if onScreen then
+                    local distance = (center - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distance < closestDist then
+                        closestDist = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- âœ… Target Aim Logic
+local TargetAimTarget = nil
+
+RunService.RenderStepped:Connect(function()
+    updateFOVCirclePosition()
+
+    if getgenv().TargetAimEnabled then
+        TargetAimTarget = getClosestPlayerToFOV()
+
+        if TargetAimTarget and TargetAimTarget.Character then
+            local targetPart = TargetAimTarget.Character:FindFirstChild(getgenv().HitPart)
+            if targetPart then
+                local aimPos = targetPart.Position + (targetPart.Velocity * getgenv().Prediction_TargetAim)
+                local newCFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+                Camera.CFrame = Camera.CFrame:Lerp(newCFrame, getgenv().TargetAimSmoothness)
+            end
+        end
+    else
+        TargetAimTarget = nil
+    end
+end)
+
+-- âœ… Aimbot Hook (For Hit Registration)
+local mt = getrawmetatable(game)
+local oldNameCall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(Self, ...)
+    local args = {...}
+    local methodName = getnamecallmethod()
+
+    if not checkcaller() and methodName == "FireServer" and getgenv().TargetAimEnabled and TargetAimTarget and TargetAimTarget.Character then
+        local hitPart = TargetAimTarget.Character:FindFirstChild(getgenv().HitPart)
+        if hitPart then
+            for i, Argument in ipairs(args) do
+                if typeof(Argument) == "Vector3" then
+                    args[i] = hitPart.Position + (hitPart.Velocity * getgenv().Prediction_TargetAim) + Vector3.new(0, 1, 0)
+                    print("âœ… Adjusted Hit Position:", args[i]) -- Debugging
+                    break -- Stop after modifying the correct argument
+                end
+            end
+        end
+    end
+
+    return oldNameCall(Self, unpack(args))
+end)
+
+setreadonly(mt, true)
