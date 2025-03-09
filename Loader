@@ -1,0 +1,98 @@
+-- Create ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Parent = game.CoreGui -- Use game.Players.LocalPlayer.PlayerGui if needed
+
+-- Create Blur Effect
+local Blur = Instance.new("BlurEffect")
+Blur.Size = 10 -- Adjust blur intensity (higher = more blur)
+Blur.Parent = game.Lighting
+
+-- Create Frame (Background)
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0.5, 0, 0.4, 0) -- 50% width, 40% height
+Frame.Position = UDim2.new(0.25, 0, 0.3, 0) -- Center
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0) -- Black background
+Frame.BackgroundTransparency = 0.3 -- Semi-transparent
+Frame.Parent = ScreenGui
+
+-- Create ImageLabel (Left Side)
+local ImageLabel = Instance.new("ImageLabel")
+ImageLabel.Size = UDim2.new(0.25, 0, 0.8, 0) -- 25% width, 80% height
+ImageLabel.Position = UDim2.new(0.02, 0, 0.1, 0) -- Positioned on the left
+ImageLabel.Image = "rbxassetid://137214854171627" -- Replace with actual image ID
+ImageLabel.BackgroundTransparency = 1
+ImageLabel.Parent = Frame
+
+-- Create Text Container (to keep text elements centered)
+local TextContainer = Instance.new("Frame")
+TextContainer.Size = UDim2.new(0.7, 0, 0.8, 0) -- 70% width, 80% height
+TextContainer.Position = UDim2.new(0.28, 0, 0.1, 0) -- Centered beside the image
+TextContainer.BackgroundTransparency = 1
+TextContainer.Parent = Frame
+
+-- Function to apply gradient effect
+local function applyGradient(textLabel)
+    local Gradient = Instance.new("UIGradient")
+    Gradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 255, 255)), -- Cyan
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255)) -- White
+    }
+    Gradient.Parent = textLabel
+end
+
+-- Create "Please Wait" TextLabel (Centered)
+local WaitLabel = Instance.new("TextLabel")
+WaitLabel.Size = UDim2.new(1, 0, 0.25, 0) -- Full width, 25% height
+WaitLabel.Position = UDim2.new(0, 0, 0, 0) -- Top of TextContainer
+WaitLabel.Text = "Please wait 7 seconds"
+WaitLabel.TextScaled = true
+WaitLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Base white (gradient will apply)
+WaitLabel.BackgroundTransparency = 1
+WaitLabel.Font = Enum.Font.GothamBold
+WaitLabel.Parent = TextContainer
+applyGradient(WaitLabel) -- Apply cyan-white gradient
+
+-- Create Main Title (Centered)
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, 0, 0.3, 0) -- Full width, 30% height
+TitleLabel.Position = UDim2.new(0, 0, 0.3, 0) -- Below "Please Wait"
+TitleLabel.Text = "VORTEX.LUA LOADING"
+TitleLabel.TextScaled = true
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Base white
+TitleLabel.BackgroundTransparency = 1
+TitleLabel.Font = Enum.Font.GothamBold
+TitleLabel.Parent = TextContainer
+applyGradient(TitleLabel) -- Apply cyan-white gradient
+
+-- Create Description (Centered)
+local DescLabel = Instance.new("TextLabel")
+DescLabel.Size = UDim2.new(1, 0, 0.2, 0) -- Full width, 20% height
+DescLabel.Position = UDim2.new(0, 0, 0.65, 0) -- Below Title
+DescLabel.Text = "CREDITS TO VardyScripts FOR MAKING THIS SCRIPT"
+DescLabel.TextScaled = true
+DescLabel.TextColor3 = Color3.fromRGB(255, 255, 255) -- Base white
+DescLabel.BackgroundTransparency = 1
+DescLabel.Font = Enum.Font.Gotham
+DescLabel.Parent = TextContainer
+applyGradient(DescLabel) -- Apply cyan-white gradient
+
+-- Countdown effect (7 seconds)
+for i = 7, 1, -1 do
+    WaitLabel.Text = "Please wait " .. i .. " seconds"
+    task.wait(1) -- Wait 1 second
+end
+
+-- Fade Out Effect
+for transparency = 0.3, 1, 0.05 do
+    Frame.BackgroundTransparency = transparency -- Gradually increase transparency
+    WaitLabel.TextTransparency = transparency
+    TitleLabel.TextTransparency = transparency
+    DescLabel.TextTransparency = transparency
+    ImageLabel.ImageTransparency = transparency
+    Blur.Size = Blur.Size - 1 -- Reduce blur effect
+    task.wait(0.05) -- Smooth transition
+end
+
+-- Remove UI and Blur after fade-out
+ScreenGui:Destroy()
+Blur:Destroy()
