@@ -1,0 +1,266 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+local Smoothness = 0.2  
+local FOV_Angle = 90  
+local CamLocking = false
+local Target = nil
+
+-- ✅ Prediction Values
+local LocalPrediction = 0.2273333333
+local HorizontalPrediction = 0.111076110
+local VerticalPrediction = 0.11034856
+
+-- ✅ Create highlight instance
+local Highlight = Instance.new("Highlight")
+Highlight.FillColor = Color3.fromRGB(255, 0, 0) 
+Highlight.FillTransparency = 0.5
+Highlight.OutlineColor = Color3.fromRGB(0, 0, 0) 
+Highlight.OutlineTransparency = 0
+Highlight.Enabled = false 
+
+-- ✅ Box ESP using Drawing API (White, Taller, Slimmer)
+local BoxESP = Drawing.new("Square")
+BoxESP.Visible = false
+BoxESP.Color = Color3.fromRGB(255, 255, 255) -- White
+BoxESP.Thickness = 1
+BoxESP.Filled = false
+
+-- ✅ Custom UI Layout
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local TextButton = Instance.new("ImageButton")
+
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BackgroundTransparency = 0.8
+Frame.Position = UDim2.new(0.1, -75, 0.5, -25)
+Frame.Size = UDim2.new(0, 90, 0, 90)
+Frame.Draggable = true
+
+TextButton.Parent = Frame
+TextButton.BackgroundTransparency = 1
+TextButton.Size = UDim2.new(0, 75, 0, 75)
+TextButton.AnchorPoint = Vector2.new(0.5, 0.5)
+TextButton.Position = UDim2.new(0.5, 0, 0.5, 0)
+TextButton.Image = "rbxassetid://135595871306427"
+
+local uiCorner = Instance.new("UICorner", Frame)
+uiCorner.CornerRadius = UDim.new(0, 9)
+
+local function createNotificationGUI()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+    local existingGui = playerGui:FindFirstChild("Vortex_Notifications")
+    if existingGui then
+        return existingGui:FindFirstChild("NotificationHolder")
+    end
+
+    local NotificationGui = Instance.new("ScreenGui")
+    NotificationGui.Name = "Vortex_Notifications"
+    NotificationGui.Parent = playerGui
+    NotificationGui.ResetOnSpawn = false -- ✅ Prevent deletion on respawn
+
+    local Holder = Instance.new("Frame")
+    Holder.Name = "NotificationHolder"
+    Holder.Size = UDim2.new(0, 243, 0, 240)
+    Holder.Position = UDim2.new(1, -10, 0, 10)
+    Holder.BackgroundTransparency = 1
+    Holder.AnchorPoint = Vector2.new(1, 0)
+    Holder.Parent = NotificationGui
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 4)
+    UIListLayout.Parent = Holder
+
+    return Holder
+end
+
+-- ✅ Initialize NotificationHolder
+NotificationHolder = createNotificationGUI()
+
+local function notify(text, duration)
+    duration = duration or 3
+
+    -- ✅ Ensure NotificationHolder exists before using
+    if not NotificationHolder or not NotificationHolder.Parent then
+        warn("NotificationHolder missing! Recreating...")
+        NotificationHolder = createNotificationGUI()
+    end
+
+    if not NotificationHolder then
+        warn("Error: Failed to create NotificationHolder!") 
+        return 
+    end 
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 22)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Frame.BackgroundTransparency = 0.3
+    Frame.Parent = NotificationHolder
+
+    local ColorBar = Instance.new("Frame", Frame)
+    ColorBar.Size = UDim2.new(0, 2, 0, 22)
+    ColorBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, -10, 0, 22)
+    Label.Position = UDim2.new(0, 8, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.Code
+    Label.Text = text .. " [" .. duration .. "s]"
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 12
+    Label.TextStrokeTransparency = 0
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    task.spawn(function()
+        for i = duration, 1, -1 do
+            if Label then
+                Label.Text = text .. " [" .. i .. "s]"
+            end
+            task.wait(1)
+        end
+        Frame:Destroy()
+    end)
+end
+
+-- ✅ Check if player is within FOV
+local function IsInFOV(player)
+    local ScreenPoint, OnScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+    if not OnScreen then return false end
+    local Direction = (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).unit
+    local DotProduct = Camera.CFrame.LookVector:Dot(Direction)
+    local Angle = math.acos(DotProduct) * (180 / math.pi)
+    return Angle <= FOV_Angle
+end
+
+-- ✅ Check if player is a friend
+local function IsFriend(player)
+    return LocalPlayer:IsFriendsWith(player.UserId)
+end
+
+-- ✅ Function to find the nearest enemy in FOV (excluding friends)
+local function GetClosestPlayerInFOV()
+    local ClosestDistance = math.huge
+    local ClosestPlayer = nil
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and IsInFOV(Player) and not IsFriend(Player) then
+            local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Player.Character.HumanoidRootPart.Position).Magnitude
+            if Distance < ClosestDistance then
+                ClosestDistance = Distance
+                ClosestPlayer = Player
+            end
+        end
+    end
+
+    return ClosestPlayer -- ✅ Returns `nil` if no valid player is found
+end
+
+-- ✅ CamLock Toggle (Fixing the error)
+TextButton.MouseButton1Click:Connect(function()
+    CamLocking = not CamLocking
+    Target = CamLocking and GetClosestPlayerInFOV() or nil
+
+    if Target then
+        notify("Vortex: Lock to " .. Target.DisplayName)
+        Highlight.Parent = Target.Character
+        Highlight.Enabled = true  
+        BoxESP.Visible = true
+        TextButton.Image = "rbxassetid://135595871306427"
+    elseif CamLocking then
+        notify("Vortex: No Target Found")
+        Highlight.Enabled = false  
+        BoxESP.Visible = false
+        TextButton.Image = "rbxassetid://135595871306427"
+    else
+        notify("Vortex: Unlocked")
+        Highlight.Enabled = false  
+        BoxESP.Visible = false
+        TextButton.Image = "rbxassetid://135595871306427"
+    end
+end)
+
+-- **Draggable Logic for Frame**
+local dragging, startPos, startMousePos
+
+Frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        startPos = Frame.Position
+        startMousePos = input.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Frame.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - startMousePos
+        Frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+-- ✅ Camera Lock Logic with Prediction
+RunService.RenderStepped:Connect(function()
+    if CamLocking and Target and Target.Character and Target.Character:FindFirstChild("HumanoidRootPart") then
+        local HRP = Target.Character.HumanoidRootPart
+        local TargetPosition = HRP.Position + Vector3.new(HorizontalPrediction, VerticalPrediction, 0)
+        local PredictedPosition = TargetPosition + (HRP.Velocity * LocalPrediction)
+
+        -- ✅ Ensure the highlight follows the new character if the target respawns
+        if Highlight.Parent ~= Target.Character then
+            Highlight.Parent = Target.Character
+        end
+
+        -- ✅ Adjust smoothness for snappier movement at 0.2, 0.3, and 0.1
+        local SnapSmoothness = (Smoothness <= 0.3) and 0.85 or Smoothness
+        
+        if SnapSmoothness % 1 == 0 then
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, PredictedPosition), SnapSmoothness)
+        else
+            Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, PredictedPosition), SnapSmoothness)
+        end
+
+        -- ✅ Update Box ESP Position & Size (Taller & Slimmer)
+        local ScreenPosition, OnScreen = Camera:WorldToViewportPoint(HRP.Position)
+        if OnScreen then
+            local Head = Target.Character:FindFirstChild("Head")
+            local Humanoid = Target.Character:FindFirstChildOfClass("Humanoid")
+
+            if Head and Humanoid then
+                local HeadPosition, _ = Camera:WorldToViewportPoint(Head.Position + Vector3.new(0, 0.5, 0)) -- Increase height
+                local LegPosition, _ = Camera:WorldToViewportPoint(HRP.Position - Vector3.new(0, Humanoid.HipHeight * 1.2, 0)) -- Extend lower
+
+                local Height = LegPosition.Y - HeadPosition.Y
+                local Width = Height * 0.4 -- Slimmer box
+
+                BoxESP.Position = Vector2.new(HeadPosition.X - (Width / 2), HeadPosition.Y)
+                BoxESP.Size = Vector2.new(Width, Height)
+                BoxESP.Visible = true
+            else
+                BoxESP.Visible = false
+            end
+        else
+            BoxESP.Visible = false
+        end
+    else
+        BoxESP.Visible = false
+        Highlight.Parent = nil -- Reset highlight when no target
+    end
+end)
