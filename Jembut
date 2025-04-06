@@ -1,0 +1,371 @@
+-- >> NiggBot
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local UserInputService = game:GetService("UserInputService")
+
+local Smoothness = 0.9  
+local FOV_Angle = 90  
+local CamLocking = false
+local Target = nil
+
+-- ✅ Prediction Values
+local LocalPrediction = 0.2273333333
+
+-- ✅ Create highlight instance
+local VortexHighlight = Instance.new("Highlight")
+VortexHighlight.Name = "VortexHighlight"
+VortexHighlight.FillColor = Color3.fromRGB(255, 0, 0) 
+VortexHighlight.FillTransparency = 0.5
+VortexHighlight.OutlineColor = Color3.fromRGB(0, 0, 0) 
+VortexHighlight.OutlineTransparency = 0
+VortexHighlight.Enabled = false
+
+-- ✅ Custom UI Layout
+local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local TextButton = Instance.new("ImageButton")
+
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+Frame.Parent = ScreenGui
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BackgroundTransparency = 0.8
+Frame.Position = UDim2.new(0.1, -75, 0.5, -25)
+Frame.Size = UDim2.new(0, 90, 0, 90)
+
+TextButton.Parent = Frame
+TextButton.BackgroundTransparency = 1
+TextButton.Size = UDim2.new(0, 75, 0, 75)
+TextButton.AnchorPoint = Vector2.new(0.5, 0.5)
+TextButton.Position = UDim2.new(0.5, 0, 0.5, 0)
+TextButton.Image = "rbxassetid://135595871306427"
+
+local uiCorner = Instance.new("UICorner")
+uiCorner.Parent = Frame
+uiCorner.CornerRadius = UDim.new(0, 9)
+
+local function createNotificationGUI()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+
+    local existingGui = playerGui:FindFirstChild("Vortex_Notifications")
+    if existingGui then
+        return existingGui:FindFirstChild("NotificationHolder")
+    end
+
+    local NotificationGui = Instance.new("ScreenGui")
+    NotificationGui.Name = "Vortex_Notifications"
+    NotificationGui.Parent = playerGui
+    NotificationGui.ResetOnSpawn = false -- ✅ Prevent deletion on respawn
+
+    local Holder = Instance.new("Frame")
+    Holder.Name = "NotificationHolder"
+    Holder.Size = UDim2.new(0, 243, 0, 240)
+    Holder.Position = UDim2.new(1, -10, 0, 10)
+    Holder.BackgroundTransparency = 1
+    Holder.AnchorPoint = Vector2.new(1, 0)
+    Holder.Parent = NotificationGui
+
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 4)
+    UIListLayout.Parent = Holder
+
+    return Holder
+end
+
+-- ✅ Initialize NotificationHolder
+NotificationHolder = createNotificationGUI()
+
+local function notify(text, duration)
+    duration = duration or 3
+
+    -- ✅ Ensure NotificationHolder exists before using
+    if not NotificationHolder or not NotificationHolder.Parent then
+        warn("NotificationHolder missing! Recreating...")
+        NotificationHolder = createNotificationGUI()
+    end
+
+    if not NotificationHolder then
+        warn("Error: Failed to create NotificationHolder!") 
+        return 
+    end 
+
+    local Frame = Instance.new("Frame")
+    Frame.Size = UDim2.new(1, 0, 0, 22)
+    Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Frame.BackgroundTransparency = 0.3
+    Frame.Parent = NotificationHolder
+
+    local ColorBar = Instance.new("Frame", Frame)
+    ColorBar.Size = UDim2.new(0, 2, 0, 22)
+    ColorBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+
+    local Label = Instance.new("TextLabel", Frame)
+    Label.Size = UDim2.new(1, -10, 0, 22)
+    Label.Position = UDim2.new(0, 8, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Font = Enum.Font.Code
+    Label.Text = text .. " [" .. duration .. "s]"
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.TextSize = 12
+    Label.TextStrokeTransparency = 0
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+
+    task.spawn(function()
+        for i = duration, 1, -1 do
+            if Label then
+                Label.Text = text .. " [" .. i .. "s]"
+            end
+            task.wait(1)
+        end
+        Frame:Destroy()
+    end)
+end
+
+-- ✅ Check if player is within FOV
+local function IsInFOV(player)
+    local ScreenPoint, OnScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+    if not OnScreen then return false end
+    local Direction = (player.Character.HumanoidRootPart.Position - Camera.CFrame.Position).unit
+    local DotProduct = Camera.CFrame.LookVector:Dot(Direction)
+    local Angle = math.acos(DotProduct) * (180 / math.pi)
+    return Angle <= FOV_Angle
+end
+
+-- ✅ Check if player is a friend
+local function IsFriend(player)
+    return LocalPlayer:IsFriendsWith(player.UserId)
+end
+
+-- ✅ Function to find the nearest enemy in FOV (excluding friends)
+local function GetClosestPlayerInFOV()
+    local ClosestDistance = math.huge
+    local ClosestPlayer = nil
+
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player ~= LocalPlayer and Player.Character and Player.Character:FindFirstChild("HumanoidRootPart") and IsInFOV(Player) and not IsFriend(Player) then
+            local Distance = (LocalPlayer.Character.HumanoidRootPart.Position - Player.Character.HumanoidRootPart.Position).Magnitude
+            if Distance < ClosestDistance then
+                ClosestDistance = Distance
+                ClosestPlayer = Player
+            end
+        end
+    end
+
+    return ClosestPlayer -- ✅ Returns `nil` if no valid player is found
+end
+
+-- ✅ CamLock Toggle (Fixing the error)
+TextButton.MouseButton1Click:Connect(function()
+    CamLocking = not CamLocking
+    Target = CamLocking and GetClosestPlayerInFOV() or nil
+
+    if Target then
+        notify("Vortex: Lock to " .. Target.DisplayName)
+
+        -- ✅ Ensure highlight exists and is applied correctly
+        if not Target.Character:FindFirstChild("VortexHighlight") then
+            VortexHighlight = Instance.new("Highlight")
+            VortexHighlight.Name = "VortexHighlight"
+            VortexHighlight.FillColor = Color3.fromRGB(255, 0, 0) 
+            VortexHighlight.FillTransparency = 0.5
+            VortexHighlight.OutlineColor = Color3.fromRGB(0, 0, 0) 
+            VortexHighlight.OutlineTransparency = 0
+            VortexHighlight.Parent = Target.Character
+        end
+        VortexHighlight.Enabled = true  
+
+        -- ✅ Change button image when locking onto enemy
+        TextButton.Image = "rbxassetid://139319361078972" 
+    elseif CamLocking then
+        notify("Vortex: No Target Found")
+        VortexHighlight.Enabled = false  
+
+        -- ✅ No target found, reset button image
+        TextButton.Image = "rbxassetid://135595871306427" 
+    else
+        notify("Vortex: Unlocked")
+        VortexHighlight.Enabled = false  
+
+        -- ✅ Unlocking, reset button image
+        TextButton.Image = "rbxassetid://135595871306427" 
+    end
+end)
+
+-- **Draggable Logic for Frame**
+local UserInputService = game:GetService("UserInputService")
+
+local function makeDraggable(frame)
+    local dragging = false
+    local dragStart, startPos
+
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            update(input)
+        end
+    end)
+end
+
+makeDraggable(Frame)
+
+-- ✅ Camera Lock Logic with Prediction
+RunService.RenderStepped:Connect(function()
+    if CamLocking and Target and Target.Character then
+        local HRP = Target.Character:FindFirstChild("HumanoidRootPart")
+        if not HRP then return end  
+
+        local TargetPosition = HRP.Position
+        local PredictedPosition = TargetPosition + (HRP.Velocity * LocalPrediction)
+
+        -- ✅ Ensure highlight exists and isn't removed
+        if not Target.Character:FindFirstChild("VortexHighlight") then
+            VortexHighlight = Instance.new("Highlight")
+            VortexHighlight.Name = "VortexHighlight"
+            VortexHighlight.FillColor = Color3.fromRGB(255, 0, 0)
+            VortexHighlight.FillTransparency = 0.5
+            VortexHighlight.OutlineColor = Color3.fromRGB(0, 0, 0)
+            VortexHighlight.OutlineTransparency = 0
+            VortexHighlight.Parent = Target.Character
+        end
+
+        VortexHighlight.Enabled = true
+
+        local SnapSmoothness = (Smoothness <= 0.3) and 0.85 or Smoothness
+        Camera.CFrame = Camera.CFrame:Lerp(CFrame.lookAt(Camera.CFrame.Position, PredictedPosition), SnapSmoothness)
+    else
+        if VortexHighlight then
+            VortexHighlight.Enabled = false
+            VortexHighlight.Parent = nil
+        end
+    end
+end)
+
+-- ✅ Local Variables (No getgenv)
+local HitPart = "HumanoidRootPart"
+local Prediction_TargetAim = 0.1377023164  -- Prediction factor
+local TargetAimEnabled = false
+local TargetAimShowFOV = true
+local TargetAimFOVSize = 100
+local TargetAimSmoothness = 0.2
+local Target = nil  -- Stores the currently locked target
+
+-- ✅ Create FOV Circle for Visualization
+local TargetAimFOVCircle = Drawing.new("Circle")
+TargetAimFOVCircle.Color = Color3.new(1, 0, 0) -- Red
+TargetAimFOVCircle.Filled = false
+TargetAimFOVCircle.Thickness = 2.0
+TargetAimFOVCircle.Visible = CamLockShowFOV
+TargetAimFOVCircle.Radius = CamLockFOVSize
+TargetAimFOVCircle.Transparency = 1
+
+-- ✅ Function to Update FOV Position
+local function updateFOVCirclePosition()
+    TargetAimFOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+end
+
+-- ✅ Function to Get Closest Player Inside FOV
+local function getClosestPlayerToFOV()
+    local center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    local closestPlayer = nil
+    local closestDist = TargetAimFOVSize  -- Limit by FOV radius
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local rootPart = player.Character:FindFirstChild(HitPart) or player.Character:FindFirstChild("HumanoidRootPart")
+            if rootPart then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                if onScreen then
+                    local distance = (center - Vector2.new(screenPos.X, screenPos.Y)).Magnitude
+                    if distance < closestDist then
+                        closestDist = distance
+                        closestPlayer = player
+                    end
+                end
+            end
+        end
+    end
+
+    return closestPlayer
+end
+
+-- ✅ CamLock Logic (Independent from __namecall)
+RunService.RenderStepped:Connect(function()
+    updateFOVCirclePosition()
+
+    if TargetAimEnabled then
+        Target = getClosestPlayerToFOV()
+
+        if Target and Target.Character then
+            local targetPart = Target.Character:FindFirstChild(HitPart)
+            if targetPart then
+                local aimPos = targetPart.Position + (targetPart.Velocity * Prediction_TargetAim)
+                local newCFrame = CFrame.new(Camera.CFrame.Position, aimPos)
+                Camera.CFrame = Camera.CFrame:Lerp(newCFrame, TargetAimSmoothness)
+            end
+        end
+    else
+        Target = nil
+    end
+end)
+
+-- ✅ Aimbot Hook (For Hit Registration)
+local mt = getrawmetatable(game)
+local oldNameCall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(Self, ...)
+    local args = {...}
+    local methodName = getnamecallmethod()
+
+    -- Check if this is the correct event and Target Aim is enabled
+    if not checkcaller() and methodName == "FireServer" and tostring(Self) == "MAINEVENT" and target and target.Character then
+        for i, Argument in ipairs(args) do
+            if typeof(Argument) == "Vector3" then
+                -- Modify bullet trajectory to aim at enemy
+                args[i] = target.Character[targetPart].Position + (target.Character[targetPart].Velocity * prediction)
+                print("🔵 Adjusted Bullet Position:", args[i])
+            end
+        end
+    end
+
+    return oldNameCall(Self, unpack(args))
+end)
+
+setreadonly(mt, true)
+
+task.spawn(function()
+    while true do
+        for _, obj in ipairs(game:GetDescendants()) do
+            if obj:IsA("Highlight") and obj.Name ~= "VortexHighlight" then
+                warn("Another script created a highlight:", obj.Parent)
+            end
+        end
+        task.wait(1)
+    end
+end)
