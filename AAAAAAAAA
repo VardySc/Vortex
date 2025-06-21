@@ -1,0 +1,287 @@
+-- // GUI Setup
+local Vortex = Instance.new("ScreenGui")
+Vortex.Name = "Vortex"
+Vortex.Parent = game.CoreGui
+Vortex.ZIndexBehavior = Enum.ZIndexBehavior.Global
+
+local Frame = Instance.new("Frame")
+Frame.Parent = Vortex
+Frame.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+Frame.BorderSizePixel = 0
+Frame.Position = UDim2.new(0.13, 0, 0.2, 0)
+Frame.Size = UDim2.new(0, 80, 0, 70)
+
+Frame.Active = true
+Frame.Selectable = true
+Frame.Draggable = true
+
+local dragging, startPos, startMousePos
+
+Frame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        startPos = Frame.Position
+        startMousePos = input.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Frame.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - startMousePos
+        Frame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+local TextButton = Instance.new("TextButton")
+TextButton.Parent = Frame
+TextButton.BackgroundTransparency = 1
+TextButton.Position = UDim2.new(0, 0, 0, 0)
+TextButton.Size = UDim2.new(1, 0, 1, 0)
+TextButton.Font = Enum.Font.SourceSansSemibold
+TextButton.Text = "Vortex.lua"
+TextButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.TextScaled = true
+TextButton.TextWrapped = true
+
+local UICorner = Instance.new("UICorner")
+UICorner.Parent = Frame
+
+-- // CamLock State Setup
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local CamlockState = false
+local Prediction = 0.12389724521
+local smoothness = 0.23
+local PredictionTargetAimX = 0.1354728391569274
+local PredictionTargetAimY = 0.1365294712846197
+local PredictionTargetAimOffset = -0.56
+local Locked = false
+
+getgenv().Key = "q"
+
+-- // NOTIFICATION SYSTEM
+local Notification = Instance.new("ScreenGui")
+Notification.Name = "Notification"
+Notification.Parent = game.CoreGui
+Notification.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+local Holder = Instance.new("Frame")
+Holder.Name = "Holder"
+Holder.Parent = Notification
+Holder.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+Holder.BackgroundTransparency = 1
+Holder.Position = UDim2.new(1, -10, 0, 10)
+Holder.AnchorPoint = Vector2.new(1, 0)
+Holder.Size = UDim2.new(0, 243, 0, 240)
+
+local UIListLayout = Instance.new("UIListLayout")
+UIListLayout.Parent = Holder
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+UIListLayout.Padding = UDim.new(0, 4)
+
+local function createNotificationTemplate(text, duration)
+    local Template = Instance.new("Frame")
+    local ColorBar = Instance.new("Frame")
+    local TextLabel = Instance.new("TextLabel")
+
+    Template.Name = text
+    Template.Parent = Holder
+    Template.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    Template.BorderSizePixel = 0
+    Template.Size = UDim2.new(1, 0, 0, 22)
+    Template.Transparency = 1
+
+    ColorBar.Name = "ColorBar"
+    ColorBar.Parent = Template
+    ColorBar.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    ColorBar.BorderSizePixel = 0
+    ColorBar.Size = UDim2.new(0, 2, 0, 22)
+    ColorBar.Transparency = 1
+
+    TextLabel.Parent = Template
+    TextLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+    TextLabel.BackgroundTransparency = 1
+    TextLabel.BorderSizePixel = 0
+    TextLabel.Position = UDim2.new(0, 8, 0, 0)
+    TextLabel.Size = UDim2.new(1, -10, 0, 22)
+    TextLabel.Font = Enum.Font.Code
+    TextLabel.Text = text .. " [" .. duration .. "s]"
+    TextLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextLabel.TextSize = 12
+    TextLabel.TextStrokeTransparency = 0
+    TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TextLabel.Transparency = 1
+
+    return Template, ColorBar, TextLabel
+end
+
+function notify(text, time)
+    if time <= 0 then
+        warn("Notification duration must be greater than 0")
+        return
+    end
+
+    local Template, ColorBar, TextLabel = createNotificationTemplate(text, time)
+
+    local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+    local fadeInGoal = {Transparency = 0}
+    local fadeOutGoal = {Transparency = 1}
+
+    TweenService:Create(Template, tweenInfo, fadeInGoal):Play()
+    TweenService:Create(ColorBar, tweenInfo, fadeInGoal):Play()
+    TweenService:Create(TextLabel, tweenInfo, fadeInGoal):Play()
+
+    local elapsed = 0
+    local updateConnection
+
+    updateConnection = RunService.RenderStepped:Connect(function(dt)
+        elapsed = elapsed + dt
+        local remainingTime = math.max(0, time - elapsed)
+        TextLabel.Text = text .. " [" .. string.format("%.1f", remainingTime) .. "s]"
+
+        if remainingTime <= 0 then
+            updateConnection:Disconnect()
+            TweenService:Create(Template, tweenInfo, fadeOutGoal):Play()
+            task.delay(0.5, function() Template:Destroy() end)
+        end
+    end)
+end
+
+function FindNearestEnemy()
+    local ClosestDistance, ClosestPlayer = math.huge, nil
+    local CenterPosition =
+        Vector2.new(
+        game:GetService("GuiService"):GetScreenResolution().X / 2,
+        game:GetService("GuiService"):GetScreenResolution().Y / 2
+    )
+
+    for _, Player in ipairs(game:GetService("Players"):GetPlayers()) do
+        if Player ~= LocalPlayer then
+            local Character = Player.Character
+            if Character and Character:FindFirstChild("HumanoidRootPart") and Character.Humanoid.Health > 0 then
+                local Position, IsVisibleOnViewport =
+                    game:GetService("Workspace").CurrentCamera:WorldToViewportPoint(Character.HumanoidRootPart.Position)
+
+                if IsVisibleOnViewport then
+                    local Distance = (CenterPosition - Vector2.new(Position.X, Position.Y)).Magnitude
+                    if Distance < ClosestDistance then
+                        ClosestPlayer = Character.HumanoidRootPart
+                        ClosestDistance = Distance
+                    end
+                end
+            end
+        end
+    end
+
+    return ClosestPlayer
+end
+
+local enemy = nil
+-- // Function to aim the camera at the nearest enemy's HumanoidRootPart
+RunService.Heartbeat:Connect(function()
+    if CamlockState and enemy then
+        local camera = workspace.CurrentCamera
+        local targetPos = enemy.Position + enemy.Velocity * Prediction
+
+        local lerpAmount
+
+        if smoothness <= 0.09 then
+            lerpAmount = 0.35
+        elseif smoothness >= 0.1 and smoothness <= 0.5 then
+            lerpAmount = math.clamp(0.55 - smoothness, 0.05, 0.15)
+        else
+            lerpAmount = 0.35
+        end
+
+        local currentCF = camera.CFrame
+        local newLookVector = (targetPos - currentCF.Position).Unit
+        local targetCF = CFrame.new(currentCF.Position, currentCF.Position + newLookVector)
+        camera.CFrame = currentCF:Lerp(targetCF, lerpAmount)
+    end
+end)
+
+
+Mouse.KeyDown:Connect(function(k)	
+    if k == getgenv().Key then	
+            Locked = not Locked	
+            if Locked then	
+                enemy = FindNearestEnemy()
+                CamlockState = true
+             else	
+                if enemy ~= nil then	
+                    enemy = nil	
+                    CamlockState = false
+                end	
+            end	
+    end	
+ end)
+
+-- // TargetAim System
+local mt = getrawmetatable(game)
+local oldNameCall = mt.__namecall
+setreadonly(mt, false)
+
+mt.__namecall = newcclosure(function(Self, ...)
+    local args = {...}
+    local methodName = getnamecallmethod()
+
+    if not checkcaller() and methodName == "FireServer" and CamlockState and enemy and enemy.Parent then
+        for i, v in ipairs(args) do
+            if typeof(v) == "Vector3" then
+                local velocity = enemy.Velocity
+                local predictedPos = enemy.Position + Vector3.new(
+                    velocity.X * PredictionTargetAimX,
+                    velocity.Y * PredictionTargetAimY,
+                    velocity.Z * PredictionTargetAimX
+                )
+
+                -- Apply jump offset if enemy is jumping
+                if velocity.Y > 1 then
+                    predictedPos = predictedPos + Vector3.new(0, PredictionTargetAimOffset, 0)
+                end
+
+                args[i] = predictedPos
+                break
+            end
+        end
+    end
+
+    return oldNameCall(Self, unpack(args))
+end)
+
+setreadonly(mt, true)
+
+-- // Button toggle logic
+TextButton.MouseButton1Click:Connect(function()
+    state = not state
+
+    if not state then
+        TextButton.Text = "Vortex ON"
+        CamlockState = true
+        enemy = FindNearestEnemy()
+
+        if enemy and enemy.Parent and Players:GetPlayerFromCharacter(enemy.Parent) then
+            local displayName = Players:GetPlayerFromCharacter(enemy.Parent).DisplayName
+            notify("VT: Locked onto " .. displayName, 1)
+        else
+            notify("VT: No Enemy Found", 1)
+        end
+    else
+        TextButton.Text = "Vortex OFF"
+        CamlockState = false
+        enemy = nil
+        notify("VT: Spared", 1)
+    end
+end)
